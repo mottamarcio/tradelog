@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TradelogExpress - Gestão de Investimentos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;700;900&display=swap');
+
+        body {
+            font-family: 'Public Sans', sans-serif;
+            background-color: #f0f4f8;
+            background-image: radial-gradient(#cbd5e1 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        .neo-brutalism {
+            border: 3px solid #000;
+            box-shadow: 6px 6px 0px 0px #000;
+            transition: all 0.2s ease;
+        }
+
+        .neo-brutalism-sm {
+            border: 2px solid #000;
+            box-shadow: 4px 4px 0px 0px #000;
+        }
+
+        .btn-neo:hover {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0px 0px #000;
+        }
+
+        .btn-neo:active {
+            transform: translate(4px, 4px);
+            box-shadow: 0px 0px 0px 0px #000;
+        }
+
+        input, select {
+            outline: none;
+        }
+        
+        input:focus, select:focus {
+            border-color: #6366f1;
+        }
+
+        ::-webkit-scrollbar { width: 10px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #000; border: 2px solid #f1f1f1; }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto">
+        <!-- Header -->
+        <header class="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-10 gap-6">
+            <div class="bg-white p-4 neo-brutalism transform -rotate-1">
+                <h1 class="text-3xl font-black italic tracking-tighter uppercase leading-none text-black">
+                    Trade<span class="text-indigo-500">log</span>Express
+                </h1>
+            </div>
+
+            <div class="flex flex-wrap gap-4 w-full lg:w-auto justify-end">
+                <div class="bg-white p-4 neo-brutalism-sm min-w-[140px]">
+                    <p class="text-[10px] font-bold uppercase text-gray-500">Movimentação no Mês</p>
+                    <p id="stat-movimentacao" class="text-lg font-black text-indigo-600">R$ 0,00</p>
+                </div>
+				<div class="bg-white p-4 neo-brutalism-sm min-w-[140px]">
+                    <p class="text-[10px] font-bold uppercase text-gray-500">Capital Alocado</p>
+                    <p id="stat-alocado" class="text-lg font-black text-black">R$ 0,00</p>
+                </div>
+                <div class="bg-white p-4 neo-brutalism-sm min-w-[140px]">
+                    <p class="text-[10px] font-bold uppercase text-gray-500">Lucro/Prejuízo</p>
+                    <p id="stat-lucro" class="text-lg font-black text-black">R$ 0,00</p>
+                </div>
+                <div class="bg-yellow-300 p-4 neo-brutalism-sm min-w-[140px]">
+                    <p class="text-[10px] font-bold uppercase text-black">DARF (15%)</p>
+                    <p id="stat-darf" class="text-lg font-black text-black">R$ 0,00</p>
+                </div>
+            </div>
+        </header>
+
+        <main class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+            <!-- Form Card -->
+            <section class="lg:col-span-4">
+                <div class="bg-white p-6 neo-brutalism">
+                    <div class="flex items-center gap-2 mb-6 border-b-2 border-black pb-2">
+                        <i data-lucide="plus-circle" class="w-6 h-6"></i>
+                        <h2 class="text-xl font-black uppercase" id="form-title">Novo Registro</h2>
+                    </div>
+
+                    <form id="trade-form" class="space-y-4">
+                        <input type="hidden" id="edit-id">
+                        
+                        <div>
+                            <label class="block text-xs font-bold uppercase mb-1">Ticker</label>
+                            <input type="text" id="ticker" placeholder="ex: PETR4" required 
+                                class="w-full p-2 bg-white border-2 border-black font-bold uppercase">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold uppercase mb-1">Data</label>
+                                <input type="date" id="data" required 
+                                    class="w-full p-2 bg-white border-2 border-black font-bold">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase mb-1">Ativo</label>
+                                <select id="tipoAtivo" class="w-full p-2 bg-white border-2 border-black font-bold uppercase appearance-none">
+                                    <option value="ação">Ação</option>
+                                    <option value="bdr">BDR</option>
+                                    <option value="etf">ETF</option>
+                                    <option value="fii">FII</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold uppercase mb-1">Operação</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="tipoOperacao" value="compra" checked class="hidden peer">
+                                    <div class="text-center p-2 border-2 border-black font-bold peer-checked:bg-green-400 peer-checked:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] uppercase text-sm">Compra</div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="tipoOperacao" value="venda" class="hidden peer">
+                                    <div class="text-center p-2 border-2 border-black font-bold peer-checked:bg-red-400 peer-checked:shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] uppercase text-sm">Venda</div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold uppercase mb-1">Quantidade</label>
+                                <input type="number" id="quantidade" step="1" min="1" required 
+                                    class="w-full p-2 bg-white border-2 border-black font-bold">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold uppercase mb-1">Preço Unit.</label>
+                                <input type="number" id="preco" step="0.01" min="0.01" required 
+                                    class="w-full p-2 bg-white border-2 border-black font-bold">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold uppercase mb-1">Custos Operacionais</label>
+                            <input type="number" id="custos" step="0.01" value="0.00" 
+                                class="w-full p-2 bg-white border-2 border-black font-bold">
+                        </div>
+
+                        <div class="flex items-center gap-2 pt-2">
+                            <input type="checkbox" id="manterDados" class="w-5 h-5 border-2 border-black accent-indigo-500">
+                            <label for="manterDados" class="text-xs font-bold uppercase cursor-pointer">Manter dados no formulário</label>
+                        </div>
+
+                        <button type="submit" class="w-full bg-indigo-500 text-white p-3 font-black uppercase text-lg neo-brutalism-sm btn-neo mt-4 flex justify-center items-center gap-2">
+                            Salvar Registro <i data-lucide="chevron-right" class="w-5 h-5"></i>
+                        </button>
+                        
+                        <div class="grid grid-cols-2 gap-3 mt-4">
+                            <button type="button" onclick="document.getElementById('import-file').click()" class="bg-white p-2 px-4 neo-brutalism-sm btn-neo flex items-center justify-center gap-2 font-bold text-xs uppercase border-2 border-black">
+                                <i data-lucide="download" class="w-4 h-4"></i> Importar
+                            </button>
+                            <button type="button" onclick="exportData()" class="bg-white p-2 px-4 neo-brutalism-sm btn-neo flex items-center justify-center gap-2 font-bold text-xs uppercase border-2 border-black">
+                                <i data-lucide="upload" class="w-4 h-4"></i> Exportar
+                            </button>
+                            <input type="file" id="import-file" class="hidden" accept=".json" onchange="importData(event)">
+                        </div>
+
+                        <button type="button" id="btn-cancel" class="hidden w-full bg-gray-200 p-2 font-bold uppercase text-sm border-2 border-black btn-neo">
+                            Cancelar Edição
+                        </button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Table Card -->
+            <section class="lg:col-span-8">
+                <div class="bg-white p-6 neo-brutalism overflow-hidden">
+                    <div class="flex items-center gap-2 mb-6 border-b-2 border-black pb-2">
+                        <i data-lucide="list" class="w-6 h-6"></i>
+                        <h2 class="text-xl font-black uppercase">Histórico de Trades</h2>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full border-collapse min-w-[600px]">
+                            <thead>
+                                <tr class="bg-black text-white text-[10px] uppercase text-left">
+                                    <th class="p-3">Data</th>
+                                    <th class="p-3">Ticker</th>
+                                    <th class="p-3">Ativo</th>
+                                    <th class="p-3">Tipo</th>
+                                    <th class="p-3 text-right">Qtd</th>
+                                    <th class="p-3 text-right">Preço</th>
+                                    <th class="p-3 text-right">Total</th>
+                                    <th class="p-3 text-center">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="trades-table-body" class="text-xs font-bold">
+                                <!-- Data injected here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div id="empty-state" class="py-12 text-center text-gray-400 font-bold uppercase">
+                        Nenhum registro encontrado. Importe ou adicione um novo.
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Feedback Toast -->
+    <div id="toast" class="fixed bottom-8 right-8 bg-green-400 p-4 neo-brutalism-sm font-black uppercase transform translate-y-32 transition-transform duration-300 z-50">
+        Sucesso!
+    </div>
+
+    <script>
+        // State management
+        let trades = [];
+        let isEditing = false;
+        const LOCAL_STORAGE_KEY = 'tradelog_express_data';
+
+        // DOM Elements
+        const form = document.getElementById('trade-form');
+        const tableBody = document.getElementById('trades-table-body');
+        const emptyState = document.getElementById('empty-state');
+        const formTitle = document.getElementById('form-title');
+        const btnCancel = document.getElementById('btn-cancel');
+        const toast = document.getElementById('toast');
+
+        // Form fields
+        const inputId = document.getElementById('edit-id');
+        const inputTicker = document.getElementById('ticker');
+        const inputData = document.getElementById('data');
+        const inputTipoAtivo = document.getElementById('tipoAtivo');
+        const inputQuantidade = document.getElementById('quantidade');
+        const inputPreco = document.getElementById('preco');
+        const inputCustos = document.getElementById('custos');
+        const checkManter = document.getElementById('manterDados');
+
+        // Stats elements
+        const statMovimentacao = document.getElementById('stat-movimentacao');
+		const statAlocado = document.getElementById('stat-alocado');
+        const statLucro = document.getElementById('stat-lucro');
+        const statDarf = document.getElementById('stat-darf');
+
+        // Initialize icons
+        lucide.createIcons();
+
+        // Helper: Format Currency
+        const fmtCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+
+        // Logic: Calculate Summary
+        function updateStats() {
+            let totalMovimentacaoMes = 0;
+			let totalAlocado = 0;
+            let lucroTotal = 0;
+            const portfolio = {};
+            const sortedTrades = [...trades].sort((a, b) => new Date(a.data) - new Date(b.data));
+
+            const hoje = new Date();
+            const mesAtual = hoje.getMonth();
+            const anoAtual = hoje.getFullYear();
+
+            sortedTrades.forEach(trade => {
+                if (!portfolio[trade.ticker]) {
+                    portfolio[trade.ticker] = { qtd: 0, precoMedio: 0 };
+                }
+
+                const p = portfolio[trade.ticker];
+                const dataTrade = new Date(trade.data);
+                const totalBruto = trade.quantidade * trade.preco;
+
+                // Cálculo de Movimentação do Mês
+                if (dataTrade.getMonth() === mesAtual && dataTrade.getFullYear() === anoAtual) {
+                    totalMovimentacaoMes += (totalBruto + trade.custos);
+                }
+
+                if (trade.tipoOperacao === 'compra') {
+                    const totalAnterior = p.qtd * p.precoMedio;
+                    const novoTotal = totalAnterior + totalBruto + trade.custos;
+                    p.qtd += trade.quantidade;
+                    p.precoMedio = p.qtd > 0 ? novoTotal / p.qtd : 0;
+                    totalAlocado += (totalBruto + trade.custos);
+                } else {
+                    const lucroOperacao = (trade.preco - p.precoMedio) * trade.quantidade - trade.custos;
+                    lucroTotal += lucroOperacao;
+                    p.qtd -= trade.quantidade;
+                    totalAlocado -= (totalBruto - trade.custos);
+                }
+            });
+
+            const darf = lucroTotal > 0 ? lucroTotal * 0.15 : 0;
+
+            statMovimentacao.textContent = fmtCurrency(totalMovimentacaoMes);
+            statAlocado.textContent = fmtCurrency(totalAlocado);
+            statLucro.textContent = fmtCurrency(lucroTotal);
+            statDarf.textContent = fmtCurrency(darf);
+
+            statLucro.className = `text-lg font-black ${lucroTotal >= 0 ? 'text-green-600' : 'text-red-600'}`;
+            statAlocado.className = `text-lg font-black ${totalAlocado >= 0 ? 'text-black' : 'text-orange-600'}`;
+        }
+
+        // Action: Render Table & Auto-save
+        function renderTable() {
+            // Auto-save to LocalStorage
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(trades));
+
+            if (trades.length === 0) {
+                emptyState.classList.remove('hidden');
+                tableBody.innerHTML = '';
+            } else {
+                emptyState.classList.add('hidden');
+                const displayTrades = [...trades].sort((a, b) => new Date(b.data) - new Date(a.data));
+                
+                tableBody.innerHTML = displayTrades.map((t) => `
+                    <tr class="border-b-2 border-black hover:bg-indigo-50 transition-colors">
+                        <td class="p-3">${t.data.split('-').reverse().join('/')}</td>
+                        <td class="p-3 uppercase font-black">${t.ticker}</td>
+                        <td class="p-3 uppercase text-[10px] text-gray-500">${t.tipoAtivo}</td>
+                        <td class="p-3">
+                            <span class="px-2 py-0.5 border border-black uppercase text-[10px] ${t.tipoOperacao === 'compra' ? 'bg-green-200' : 'bg-red-200'}">
+                                ${t.tipoOperacao}
+                            </span>
+                        </td>
+                        <td class="p-3 text-right">${t.quantidade}</td>
+                        <td class="p-3 text-right">${fmtCurrency(t.preco)}</td>
+                        <td class="p-3 text-right font-black">${fmtCurrency(t.quantidade * t.preco)}</td>
+                        <td class="p-3 text-center">
+                            <div class="flex justify-center gap-2">
+                                <button onclick="editTrade('${t.id}')" title="Editar" class="p-1 border border-black hover:bg-indigo-500 hover:text-white transition-colors">
+                                    <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
+                                </button>
+                                <button onclick="deleteTrade('${t.id}')" title="Excluir" class="p-1 border border-black hover:bg-red-500 hover:text-white transition-colors">
+                                    <i data-lucide="trash" class="w-3.5 h-3.5"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
+                lucide.createIcons();
+            }
+            updateStats();
+        }
+
+        // Action: Auto-load Data (JSON and LocalStorage)
+        async function loadInitialData() {
+            // 1. Tentar carregar do arquivo JSON (caso esteja rodando em servidor local)
+            try {
+                const response = await fetch('tradelog_data.json');
+                if (response.ok) {
+                    const data = await response.json();
+                    if (Array.isArray(data) && data.length > 0) {
+                        trades = data;
+                        renderTable();
+                        showToast("Dados do arquivo carregados!", "bg-indigo-400");
+                        return;
+                    }
+                }
+            } catch (e) {
+                console.log("Arquivo JSON não acessível via Fetch (esperado em file://). Usando LocalStorage.");
+            }
+
+            // 2. Tentar carregar do LocalStorage (Backup persistente)
+            const savedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+            if (savedData) {
+                try {
+                    trades = JSON.parse(savedData);
+                    renderTable();
+                } catch (e) {
+                    console.error("Erro ao ler dados do LocalStorage");
+                }
+            }
+        }
+
+        // Action: Import JSON
+        window.importData = (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (Array.isArray(imported)) {
+                        trades = imported;
+                        renderTable();
+                        showToast("Dados Importados!");
+                    } else {
+                        throw new Error("Formato inválido");
+                    }
+                } catch (err) {
+                    showToast("Erro ao importar arquivo!", "bg-red-400");
+                }
+                event.target.value = ''; 
+            };
+            reader.readAsText(file);
+        };
+
+        // Action: Export JSON
+        window.exportData = () => {
+            if (trades.length === 0) {
+                showToast("Nada para exportar!", "bg-yellow-400");
+                return;
+            }
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(trades, null, 2));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "tradelog_data.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+            showToast("JSON Exportado!");
+        };
+
+        // Action: Save Trade
+        form.onsubmit = (e) => {
+            e.preventDefault();
+            const tipoOperacao = document.querySelector('input[name="tipoOperacao"]:checked').value;
+            
+            const tradeData = {
+                id: isEditing ? inputId.value : Date.now().toString(),
+                ticker: inputTicker.value.toUpperCase(),
+                data: inputData.value,
+                tipoAtivo: inputTipoAtivo.value,
+                tipoOperacao: tipoOperacao,
+                quantidade: parseInt(inputQuantidade.value),
+                preco: parseFloat(inputPreco.value),
+                custos: parseFloat(inputCustos.value)
+            };
+
+            if (isEditing) {
+                trades = trades.map(t => t.id === tradeData.id ? tradeData : t);
+                showToast("Registro Atualizado!");
+                cancelEdit();
+            } else {
+                trades.push(tradeData);
+                showToast("Registro Salvo!");
+            }
+
+            if (!checkManter.checked) {
+                form.reset();
+                document.querySelector('input[value="compra"]').checked = true;
+            }
+
+            renderTable();
+        };
+
+        // Action: Edit
+        window.editTrade = (id) => {
+            const trade = trades.find(t => t.id === id);
+            if (!trade) return;
+            isEditing = true;
+            formTitle.textContent = "Editar Registro";
+            btnCancel.classList.remove('hidden');
+            inputId.value = trade.id;
+            inputTicker.value = trade.ticker;
+            inputData.value = trade.data;
+            inputTipoAtivo.value = trade.tipoAtivo;
+            inputQuantidade.value = trade.quantidade;
+            inputPreco.value = trade.preco;
+            inputCustos.value = trade.custos;
+            document.querySelector(`input[name="tipoOperacao"][value="${trade.tipoOperacao}"]`).checked = true;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        };
+
+        function cancelEdit() {
+            isEditing = false;
+            formTitle.textContent = "Novo Registro";
+            btnCancel.classList.add('hidden');
+            form.reset();
+            document.querySelector('input[value="compra"]').checked = true;
+        }
+
+        btnCancel.onclick = cancelEdit;
+
+        // Action: Delete
+        window.deleteTrade = (id) => {
+            if (confirm("Deseja remover este registro?")) {
+                trades = trades.filter(t => t.id !== id);
+                renderTable();
+                showToast("Registro Removido!", "bg-red-400");
+            }
+        };
+
+        // UI: Toast
+        function showToast(msg, colorClass = "bg-green-400") {
+            toast.textContent = msg;
+            toast.className = `fixed bottom-8 right-8 p-4 neo-brutalism-sm font-black uppercase transition-transform duration-300 z-50 ${colorClass}`;
+            toast.classList.remove('translate-y-32');
+            setTimeout(() => {
+                toast.classList.add('translate-y-32');
+            }, 3000);
+        }
+
+        // Init
+        loadInitialData();
+    </script>
+</body>
+</html>
