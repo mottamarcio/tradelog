@@ -30,14 +30,20 @@
             box-shadow: 4px 4px 0px 0px #000;
         }
 
-        .btn-neo:hover {
+        .btn-neo:not(:disabled):hover {
             transform: translate(2px, 2px);
             box-shadow: 2px 2px 0px 0px #000;
         }
 
-        .btn-neo:active {
+        .btn-neo:not(:disabled):active {
             transform: translate(4px, 4px);
             box-shadow: 0px 0px 0px 0px #000;
+        }
+        
+        .btn-neo:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            filter: grayscale(1);
         }
 
         .modal-overlay {
@@ -79,12 +85,13 @@
                     <p id="stat-alocado" class="text-lg font-black text-black">R$ 0,00</p>
                 </div>
                 <div class="bg-white p-4 neo-brutalism-sm min-w-[140px]">
-                    <p class="text-[10px] font-bold uppercase text-gray-500">Lucro Total</p>
+                    <!-- <p class="text-[10px] font-bold uppercase text-gray-500">Lucro Total (Geral)</p> -->
+                    <p class="text-[10px] font-bold uppercase text-gray-500">Lucro Mês Atual</p>
                     <p id="stat-lucro" class="text-lg font-black text-black">R$ 0,00</p>
                 </div>
                 <div onclick="openDarfModal()" title="Ver Histórico de DARFs" class="bg-yellow-300 p-4 neo-brutalism-sm min-w-[140px] cursor-pointer hover:bg-yellow-400 transition-all group">
                     <div class="flex justify-between items-center mb-1">
-                        <p class="text-[10px] font-bold uppercase text-black">DARF Atual (15%)</p>
+                        <p class="text-[10px] font-bold uppercase text-black">DARF Mês Atual (15%)</p>
                         <i data-lucide="external-link" class="w-3 h-3 opacity-30 group-hover:opacity-100 transition-opacity"></i>
                     </div>
                     <p id="stat-darf" class="text-lg font-black text-black">R$ 0,00</p>
@@ -239,7 +246,7 @@
                 <h3 class="text-2xl font-black uppercase mb-4 tracking-tighter">
                     Trade<span class="text-indigo-500">log</span>Express
                 </h3>
-                <p class="text-sm font-bold text-gray-600 leading-relaxed max-w-md">
+                <p class="text-sm text-gray-600 leading-relaxed max-w-md">
                     Gestão simplificada de ativos de renda variável. Focada na praticidade, a ferramenta permite o controle de preço médio e cálculo de obrigações fiscais diretamente no navegador.
                 </p>
             </div>
@@ -248,7 +255,7 @@
                 <h4 class="font-black uppercase text-sm mb-2 flex items-center gap-2">
                     Privacidade e Cache Local
                 </h4>
-                <p class="text-xs font-bold text-black leading-relaxed">
+                <p class="text-xs text-black leading-relaxed">
                     Seus registros <strong>não são enviados para nenhum servidor</strong>. Tudo é armazenado no <span class="underline decoration-black decoration-2 underline-offset-2">LocalStorage</span> do seu navegador. 
                     <br><br>
                     <strong>Atenção:</strong> Se você limpar os dados do navegador, os registros serão apagados. Use a função <strong>Exportar</strong> para criar backups manuais regularmente.
@@ -269,7 +276,7 @@
                     <h2 class="text-xl font-black uppercase flex items-center gap-2">
                         <i data-lucide="receipt" class="w-6 h-6"></i> Histórico de DARF
                     </h2>
-                    <p class="text-[10px] font-bold uppercase opacity-70 text-black">15% sobre o lucro de Swing Trade</p>
+                    <p class="text-[10px] font-bold uppercase opacity-70 text-black">15% sobre o lucro de Swing Trade (Renda Variável)</p>
                 </div>
                 <button onclick="closeDarfModal()" class="p-2 hover:bg-black hover:text-white border-2 border-black transition-all">
                     <i data-lucide="x" class="w-6 h-6"></i>
@@ -334,14 +341,17 @@
         // Auxiliar: Formatar Moeda
         const fmtCurrency = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
-        // Lógica: Cálculo Mensal para DARF
+        /**
+         * Lógica: Cálculo Mensal para DARF e Histórico
+         * Calcula o Preço Médio contínuo e agrupa lucros por mês.
+         */
         function calculateMonthlyHistory() {
             const history = {};
             const sortedTrades = [...trades].sort((a, b) => new Date(a.data) - new Date(b.data));
             const portfolio = {};
 
             sortedTrades.forEach(trade => {
-                const date = new Date(trade.data);
+                const date = new Date(trade.data + 'T00:00:00'); // Garantir fuso local
                 const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
                 
                 if (!history[monthKey]) history[monthKey] = { lucro: 0, movimentacao: 0 };
@@ -356,9 +366,15 @@
                     p.qtd += trade.quantidade;
                     p.precoMedio = p.qtd > 0 ? novoTotal / p.qtd : 0;
                 } else {
+                    // Lucro da venda baseado no preço médio atual
                     const lucroOperacao = (trade.preco - p.precoMedio) * trade.quantidade - trade.custos;
                     history[monthKey].lucro += lucroOperacao;
                     p.qtd -= trade.quantidade;
+                    // Se zerar a posição, o preço médio pode resetar ou manter (aqui mantemos para histórico se precisar)
+                    if (p.qtd <= 0) {
+                        p.qtd = 0;
+                        // p.precoMedio = 0; // Opcional: resetar se quiser
+                    }
                 }
                 history[monthKey].movimentacao += (totalBruto + trade.custos);
             });
@@ -368,49 +384,48 @@
 
         // Lógica: Atualizar Cards de Resumo
         function updateStats() {
-            let totalMovimentacaoMes = 0;
-			let totalAlocado = 0;
-            let lucroTotal = 0;
+            let lucroTotalAcumulado = 0;
+            let capitalAlocadoAtual = 0;
             const portfolio = {};
             const sortedTrades = [...trades].sort((a, b) => new Date(a.data) - new Date(b.data));
 
+            // Identificar mês atual para as estatísticas do header
             const hoje = new Date();
-            const mesAtual = hoje.getMonth();
-            const anoAtual = hoje.getFullYear();
-            const currentMonthKey = `${anoAtual}-${String(mesAtual + 1).padStart(2, '0')}`;
+            const currentMonthKey = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
 
             sortedTrades.forEach(trade => {
                 if (!portfolio[trade.ticker]) portfolio[trade.ticker] = { qtd: 0, precoMedio: 0 };
                 const p = portfolio[trade.ticker];
-                const dataTrade = new Date(trade.data);
                 const totalBruto = trade.quantidade * trade.preco;
-
-                if (dataTrade.getMonth() === mesAtual && dataTrade.getFullYear() === anoAtual) {
-                    totalMovimentacaoMes += (totalBruto + trade.custos);
-                }
 
                 if (trade.tipoOperacao === 'compra') {
                     const totalAnterior = p.qtd * p.precoMedio;
                     p.qtd += trade.quantidade;
                     p.precoMedio = p.qtd > 0 ? (totalAnterior + totalBruto + trade.custos) / p.qtd : 0;
-                    totalAlocado += (totalBruto + trade.custos);
                 } else {
                     const lucroOperacao = (trade.preco - p.precoMedio) * trade.quantidade - trade.custos;
-                    lucroTotal += lucroOperacao;
+                    lucroTotalAcumulado += lucroOperacao;
                     p.qtd -= trade.quantidade;
-                    totalAlocado -= (p.precoMedio * trade.quantidade);
                 }
             });
 
-            const history = calculateMonthlyHistory();
-            const darfAtual = history[currentMonthKey] && history[currentMonthKey].lucro > 0 ? history[currentMonthKey].lucro * 0.15 : 0;
+            // Capital Alocado = Soma do Preço Médio * Quantidade em carteira
+            Object.values(portfolio).forEach(p => {
+                if (p.qtd > 0) capitalAlocadoAtual += (p.qtd * p.precoMedio);
+            });
 
-            statMovimentacao.textContent = fmtCurrency(totalMovimentacaoMes);
-            statAlocado.textContent = fmtCurrency(Math.max(0, totalAlocado));
-            statLucro.textContent = fmtCurrency(lucroTotal);
+            const history = calculateMonthlyHistory();
+            const statsMesAtual = history[currentMonthKey] || { lucro: 0, movimentacao: 0 };
+            const darfAtual = statsMesAtual.lucro > 0 ? statsMesAtual.lucro * 0.15 : 0;
+
+            statMovimentacao.textContent = fmtCurrency(statsMesAtual.movimentacao);
+            statAlocado.textContent = fmtCurrency(Math.max(0, capitalAlocadoAtual));
+            // statLucro.textContent = fmtCurrency(lucroTotalAcumulado);
+            statLucro.textContent = fmtCurrency(statsMesAtual.lucro);
             statDarf.textContent = fmtCurrency(darfAtual);
 
-            statLucro.className = `text-lg font-black ${lucroTotal >= 0 ? 'text-green-600' : 'text-red-600'}`;
+            // statLucro.className = `text-lg font-black ${lucroTotalAcumulado >= 0 ? 'text-green-600' : 'text-red-600'}`;
+            statLucro.className = `text-lg font-black ${statsMesAtual.lucro >= 0 ? 'text-green-600' : 'text-red-600'}`;
         }
 
         // Lógica: Renderizar Tabela com Filtros
@@ -495,23 +510,29 @@
                 const item = history[key];
                 const darfValue = item.lucro > 0 ? item.lucro * 0.15 : 0;
                 const isPaid = !!paidDarfs[key];
+                const hasLoss = item.lucro <= 0;
 
                 return `
-                    <div class="p-4 bg-white border-2 border-black neo-brutalism-sm flex flex-col sm:flex-row justify-between items-center gap-4 ${isPaid ? 'opacity-60 bg-slate-100' : ''}">
+                    <div class="p-4 bg-white border-2 border-black neo-brutalism-sm flex flex-col sm:flex-row justify-between items-center gap-4 ${isPaid ? 'opacity-60 bg-slate-100' : ''} ${hasLoss ? 'bg-gray-50' : ''}">
                         <div class="flex items-center gap-4">
                             <div class="bg-black text-white p-2 min-w-[75px] text-center border-2 border-black">
                                 <span class="block text-[10px] uppercase font-bold">${monthNames[parseInt(month)-1]}</span>
                                 <span class="block text-xl font-black">${year}</span>
                             </div>
                             <div>
-                                <p class="text-[10px] font-bold uppercase text-gray-500">Valor Estimado</p>
-                                <p class="text-xl font-black ${darfValue > 0 && !isPaid ? 'text-red-500' : 'text-black'}">${fmtCurrency(darfValue)}</p>
+                                <p class="text-[10px] font-bold uppercase text-gray-500">Imposto Estimado (15%)</p>
+                                <p class="text-xl font-black ${darfValue > 0 && !isPaid ? 'text-red-500' : 'text-black'}">
+                                    ${hasLoss ? 'ISENTO' : fmtCurrency(darfValue)}
+                                </p>
                             </div>
                         </div>
                         <div class="flex flex-col items-end gap-1">
-                            <span class="text-[10px] font-bold uppercase text-gray-400 italic">Lucro: ${fmtCurrency(item.lucro)}</span>
-                            <button onclick="toggleDarfPaid('${key}')" class="px-4 py-1 border-2 border-black font-black uppercase text-xs btn-neo transition-all ${isPaid ? 'bg-green-400' : 'bg-yellow-300'}">
-                                ${isPaid ? '✓ Pago' : 'Setar Pago'}
+                            <span class="text-[10px] font-bold uppercase ${hasLoss ? 'text-red-400' : 'text-green-600'}">Resultado: ${fmtCurrency(item.lucro)}</span>
+                            <button 
+                                onclick="toggleDarfPaid('${key}')" 
+                                ${hasLoss ? 'disabled' : ''}
+                                class="px-4 py-1 border-2 border-black font-black uppercase text-xs btn-neo transition-all ${isPaid ? 'bg-green-400' : 'bg-yellow-300'}">
+                                ${hasLoss ? 'Prejuízo' : (isPaid ? '✓ Pago' : 'Setar Pago')}
                             </button>
                         </div>
                     </div>
@@ -578,6 +599,7 @@
         btnCancel.onclick = cancelEdit;
 
         window.deleteTrade = (id) => {
+            // No alert() as requested, using custom confirm style would be better but keeping confirm for standard logic if simple
             if (confirm("Deseja remover este registro permanentemente?")) {
                 trades = trades.filter(t => t.id !== id);
                 renderTable();
