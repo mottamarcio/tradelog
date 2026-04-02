@@ -77,8 +77,12 @@
 
             <div class="flex flex-wrap gap-4 w-full lg:w-auto justify-end">
                 <div class="bg-white p-4 neo-brutalism-sm min-w-[140px]">
-                    <p class="text-[10px] font-bold uppercase text-gray-500">Movimentação no Mês</p>
-                    <p id="stat-movimentacao" class="text-lg font-black text-indigo-600">R$ 0,00</p>
+                    <p class="text-[10px] font-bold uppercase text-gray-500">Compras no Mês</p>
+                    <p id="stat-compras" class="text-lg font-black text-indigo-600">R$ 0,00</p>
+                </div>
+                <div class="bg-white p-4 neo-brutalism-sm min-w-[140px]">
+                    <p class="text-[10px] font-bold uppercase text-gray-500">Vendas no Mês</p>
+                    <p id="stat-vendas" class="text-lg font-black text-indigo-600">R$ 0,00</p>
                 </div>
 				<div class="bg-white p-4 neo-brutalism-sm min-w-[140px]">
                     <p class="text-[10px] font-bold uppercase text-gray-500">Capital Alocado</p>
@@ -91,7 +95,7 @@
                 </div>
                 <div onclick="openDarfModal()" title="Ver Histórico de DARFs" class="bg-yellow-300 p-4 neo-brutalism-sm min-w-[140px] cursor-pointer hover:bg-yellow-400 transition-all group">
                     <div class="flex justify-between items-center mb-1">
-                        <p class="text-[10px] font-bold uppercase text-black">DARF Mês Atual (15%)</p>
+                        <p class="text-[10px] font-bold uppercase text-black">DARF Mês Atual</p>
                         <i data-lucide="external-link" class="w-3 h-3 opacity-30 group-hover:opacity-100 transition-opacity"></i>
                     </div>
                     <p id="stat-darf" class="text-lg font-black text-black">R$ 0,00</p>
@@ -276,7 +280,7 @@
                     <h2 class="text-xl font-black uppercase flex items-center gap-2">
                         <i data-lucide="receipt" class="w-6 h-6"></i> Histórico de DARF
                     </h2>
-                    <p class="text-[10px] font-bold uppercase opacity-70 text-black">15% sobre o lucro de Swing Trade (Renda Variável)</p>
+                    <p class="text-[10px] font-bold uppercase opacity-70 text-black">Swing Trade (15%) e Day Trade (20%) sobre o lucro</p>
                 </div>
                 <button onclick="closeDarfModal()" class="p-2 hover:bg-black hover:text-white border-2 border-black transition-all">
                     <i data-lucide="x" class="w-6 h-6"></i>
@@ -330,7 +334,8 @@
         const checkManter = document.getElementById('manterDados');
 
         // Cards de Estatísticas
-        const statMovimentacao = document.getElementById('stat-movimentacao');
+        const statCompras = document.getElementById('stat-compras');
+        const statVendas = document.getElementById('stat-vendas');
 		const statAlocado = document.getElementById('stat-alocado');
         const statLucro = document.getElementById('stat-lucro');
         const statDarf = document.getElementById('stat-darf');
@@ -349,83 +354,123 @@
             const history = {};
             const sortedTrades = [...trades].sort((a, b) => new Date(a.data) - new Date(b.data));
             const portfolio = {};
+            let lucroTotalAcumulado = 0;
 
+            // Agrupar trades por data e ticker para identificar Day Trade
+            const tradesByDate = {};
             sortedTrades.forEach(trade => {
-                const date = new Date(trade.data + 'T00:00:00'); // Garantir fuso local
-                const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-                
-                if (!history[monthKey]) history[monthKey] = { lucro: 0, movimentacao: 0 };
-                if (!portfolio[trade.ticker]) portfolio[trade.ticker] = { qtd: 0, precoMedio: 0 };
-
-                const p = portfolio[trade.ticker];
-                const totalBruto = trade.quantidade * trade.preco;
-
-                if (trade.tipoOperacao === 'compra') {
-                    const totalAnterior = p.qtd * p.precoMedio;
-                    const novoTotal = totalAnterior + totalBruto + trade.custos;
-                    p.qtd += trade.quantidade;
-                    p.precoMedio = p.qtd > 0 ? novoTotal / p.qtd : 0;
-                } else {
-                    // Lucro da venda baseado no preço médio atual
-                    const lucroOperacao = (trade.preco - p.precoMedio) * trade.quantidade - trade.custos;
-                    history[monthKey].lucro += lucroOperacao;
-                    p.qtd -= trade.quantidade;
-                    // Se zerar a posição, o preço médio pode resetar ou manter (aqui mantemos para histórico se precisar)
-                    if (p.qtd <= 0) {
-                        p.qtd = 0;
-                        // p.precoMedio = 0; // Opcional: resetar se quiser
-                    }
-                }
-                history[monthKey].movimentacao += (totalBruto + trade.custos);
+                if (!tradesByDate[trade.data]) tradesByDate[trade.data] = {};
+                if (!tradesByDate[trade.data][trade.ticker]) tradesByDate[trade.data][trade.ticker] = [];
+                tradesByDate[trade.data][trade.ticker].push(trade);
             });
 
-            return history;
+            const sortedDates = Object.keys(tradesByDate).sort();
+
+            sortedDates.forEach(dateStr => {
+                const date = new Date(dateStr + 'T00:00:00');
+                const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                
+                if (!history[monthKey]) history[monthKey] = { lucroSwing: 0, lucroDayTrade: 0, compras: 0, vendas: 0 };
+
+                const tickersOnDate = tradesByDate[dateStr];
+                for (const ticker in tickersOnDate) {
+                    if (!portfolio[ticker]) portfolio[ticker] = { qtd: 0, precoMedio: 0 };
+                    const p = portfolio[ticker];
+                    
+                    const dayTrades = tickersOnDate[ticker];
+                    let buyQty = 0;
+                    let sellQty = 0;
+                    let buyValue = 0;
+                    let sellValue = 0;
+                    let buyCosts = 0;
+                    let sellCosts = 0;
+
+                    dayTrades.forEach(t => {
+                        const tradeValue = (t.quantidade * t.preco + t.custos);
+                        if (t.tipoOperacao === 'compra') {
+                            buyQty += t.quantidade;
+                            buyValue += t.quantidade * t.preco;
+                            buyCosts += t.custos;
+                            history[monthKey].compras += tradeValue;
+                        } else {
+                            sellQty += t.quantidade;
+                            sellValue += t.quantidade * t.preco;
+                            sellCosts += t.custos;
+                            history[monthKey].vendas += tradeValue;
+                        }
+                    });
+
+                    // Lógica de Day Trade (overlap de compra e venda no mesmo dia)
+                    const dayTradeQty = Math.min(buyQty, sellQty);
+                    if (dayTradeQty > 0) {
+                        const avgBuyPrice = buyValue / buyQty;
+                        const avgSellPrice = sellValue / sellQty;
+                        
+                        // Custos proporcionais
+                        const propBuyCosts = (dayTradeQty / buyQty) * buyCosts;
+                        const propSellCosts = (dayTradeQty / sellQty) * sellCosts;
+                        
+                        const lucroDT = (avgSellPrice - avgBuyPrice) * dayTradeQty - propBuyCosts - propSellCosts;
+                        history[monthKey].lucroDayTrade += lucroDT;
+                        lucroTotalAcumulado += lucroDT;
+                    }
+
+                    // Lógica de Swing Trade (o que sobra do dia)
+                    if (buyQty > sellQty) {
+                        const remainingBuyQty = buyQty - sellQty;
+                        const avgBuyPrice = buyValue / buyQty;
+                        const propBuyCosts = (remainingBuyQty / buyQty) * buyCosts;
+                        
+                        const totalAnterior = p.qtd * p.precoMedio;
+                        const novoTotalValue = totalAnterior + (remainingBuyQty * avgBuyPrice) + propBuyCosts;
+                        p.qtd += remainingBuyQty;
+                        p.precoMedio = p.qtd > 0 ? novoTotalValue / p.qtd : 0;
+                    } else if (sellQty > buyQty) {
+                        const remainingSellQty = sellQty - buyQty;
+                        const avgSellPrice = sellValue / sellQty;
+                        const propSellCosts = (remainingSellQty / sellQty) * sellCosts;
+                        
+                        const lucroST = (avgSellPrice - p.precoMedio) * remainingSellQty - propSellCosts;
+                        history[monthKey].lucroSwing += lucroST;
+                        lucroTotalAcumulado += lucroST;
+                        
+                        p.qtd -= remainingSellQty;
+                        if (p.qtd <= 0) p.qtd = 0;
+                    }
+                }
+            });
+
+            let capitalAlocadoAtual = 0;
+            Object.values(portfolio).forEach(p => {
+                if (p.qtd > 0) capitalAlocadoAtual += (p.qtd * p.precoMedio);
+            });
+
+            return { history, portfolio, lucroTotalAcumulado, capitalAlocadoAtual };
         }
 
         // Lógica: Atualizar Cards de Resumo
         function updateStats() {
-            let lucroTotalAcumulado = 0;
-            let capitalAlocadoAtual = 0;
-            const portfolio = {};
-            const sortedTrades = [...trades].sort((a, b) => new Date(a.data) - new Date(b.data));
+            const results = calculateMonthlyHistory();
+            const history = results.history;
+            const capitalAlocadoAtual = results.capitalAlocadoAtual;
 
             // Identificar mês atual para as estatísticas do header
             const hoje = new Date();
             const currentMonthKey = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
 
-            sortedTrades.forEach(trade => {
-                if (!portfolio[trade.ticker]) portfolio[trade.ticker] = { qtd: 0, precoMedio: 0 };
-                const p = portfolio[trade.ticker];
-                const totalBruto = trade.quantidade * trade.preco;
+            const statsMesAtual = history[currentMonthKey] || { lucroSwing: 0, lucroDayTrade: 0, compras: 0, vendas: 0 };
+            const darfAtual = (statsMesAtual.lucroSwing > 0 ? statsMesAtual.lucroSwing * 0.15 : 0) + 
+                             (statsMesAtual.lucroDayTrade > 0 ? statsMesAtual.lucroDayTrade * 0.20 : 0);
 
-                if (trade.tipoOperacao === 'compra') {
-                    const totalAnterior = p.qtd * p.precoMedio;
-                    p.qtd += trade.quantidade;
-                    p.precoMedio = p.qtd > 0 ? (totalAnterior + totalBruto + trade.custos) / p.qtd : 0;
-                } else {
-                    const lucroOperacao = (trade.preco - p.precoMedio) * trade.quantidade - trade.custos;
-                    lucroTotalAcumulado += lucroOperacao;
-                    p.qtd -= trade.quantidade;
-                }
-            });
-
-            // Capital Alocado = Soma do Preço Médio * Quantidade em carteira
-            Object.values(portfolio).forEach(p => {
-                if (p.qtd > 0) capitalAlocadoAtual += (p.qtd * p.precoMedio);
-            });
-
-            const history = calculateMonthlyHistory();
-            const statsMesAtual = history[currentMonthKey] || { lucro: 0, movimentacao: 0 };
-            const darfAtual = statsMesAtual.lucro > 0 ? statsMesAtual.lucro * 0.15 : 0;
-
-            statMovimentacao.textContent = fmtCurrency(statsMesAtual.movimentacao);
+            statCompras.textContent = fmtCurrency(statsMesAtual.compras);
+            statVendas.textContent = fmtCurrency(statsMesAtual.vendas);
             statAlocado.textContent = fmtCurrency(Math.max(0, capitalAlocadoAtual));
-            // statLucro.textContent = fmtCurrency(lucroTotalAcumulado);
-            statLucro.textContent = fmtCurrency(statsMesAtual.lucro);
+            
+            const lucroMes = statsMesAtual.lucroSwing + statsMesAtual.lucroDayTrade;
+            statLucro.textContent = fmtCurrency(lucroMes);
             statDarf.textContent = fmtCurrency(darfAtual);
 
-            // statLucro.className = `text-lg font-black ${lucroTotalAcumulado >= 0 ? 'text-green-600' : 'text-red-600'}`;
-            statLucro.className = `text-lg font-black ${statsMesAtual.lucro >= 0 ? 'text-green-600' : 'text-red-600'}`;
+            statLucro.className = `text-lg font-black ${lucroMes >= 0 ? 'text-green-600' : 'text-red-600'}`;
         }
 
         // Lógica: Renderizar Tabela com Filtros
@@ -494,7 +539,8 @@
         };
 
         function renderDarfList() {
-            const history = calculateMonthlyHistory();
+            const results = calculateMonthlyHistory();
+            const history = results.history;
             const listContainer = document.getElementById('darf-list');
             const keys = Object.keys(history).sort().reverse();
 
@@ -508,31 +554,37 @@
             listContainer.innerHTML = keys.map(key => {
                 const [year, month] = key.split('-');
                 const item = history[key];
-                const darfValue = item.lucro > 0 ? item.lucro * 0.15 : 0;
+                const darfValue = (item.lucroSwing > 0 ? item.lucroSwing * 0.15 : 0) + 
+                                (item.lucroDayTrade > 0 ? item.lucroDayTrade * 0.20 : 0);
+                const lucroTotalMes = item.lucroSwing + item.lucroDayTrade;
                 const isPaid = !!paidDarfs[key];
-                const hasLoss = item.lucro <= 0;
+                const isExempt = darfValue <= 0;
 
                 return `
-                    <div class="p-4 bg-white border-2 border-black neo-brutalism-sm flex flex-col sm:flex-row justify-between items-center gap-4 ${isPaid ? 'opacity-60 bg-slate-100' : ''} ${hasLoss ? 'bg-gray-50' : ''}">
+                    <div class="p-4 bg-white border-2 border-black neo-brutalism-sm flex flex-col sm:flex-row justify-between items-center gap-4 ${isPaid ? 'opacity-60 bg-slate-100' : ''} ${isExempt ? 'bg-gray-50' : ''}">
                         <div class="flex items-center gap-4">
                             <div class="bg-black text-white p-2 min-w-[75px] text-center border-2 border-black">
                                 <span class="block text-[10px] uppercase font-bold">${monthNames[parseInt(month)-1]}</span>
                                 <span class="block text-xl font-black">${year}</span>
                             </div>
                             <div>
-                                <p class="text-[10px] font-bold uppercase text-gray-500">Imposto Estimado (15%)</p>
+                                <p class="text-[10px] font-bold uppercase text-gray-500">Imposto Estimado</p>
                                 <p class="text-xl font-black ${darfValue > 0 && !isPaid ? 'text-red-500' : 'text-black'}">
-                                    ${hasLoss ? 'ISENTO' : fmtCurrency(darfValue)}
+                                    ${isExempt ? 'ISENTO' : fmtCurrency(darfValue)}
                                 </p>
                             </div>
                         </div>
                         <div class="flex flex-col items-end gap-1">
-                            <span class="text-[10px] font-bold uppercase ${hasLoss ? 'text-red-400' : 'text-green-600'}">Resultado: ${fmtCurrency(item.lucro)}</span>
+                            <div class="flex gap-2 text-[9px] font-bold uppercase text-gray-400">
+                                <span>ST (15%): ${fmtCurrency(item.lucroSwing)}</span>
+                                <span>DT (20%): ${fmtCurrency(item.lucroDayTrade)}</span>
+                            </div>
+                            <span class="text-[10px] font-bold uppercase ${lucroTotalMes >= 0 ? 'text-green-600' : 'text-red-400'}">Resultado: ${fmtCurrency(lucroTotalMes)}</span>
                             <button 
                                 onclick="toggleDarfPaid('${key}')" 
-                                ${hasLoss ? 'disabled' : ''}
+                                ${isExempt ? 'disabled' : ''}
                                 class="px-4 py-1 border-2 border-black font-black uppercase text-xs btn-neo transition-all ${isPaid ? 'bg-green-400' : 'bg-yellow-300'}">
-                                ${hasLoss ? 'Prejuízo' : (isPaid ? '✓ Pago' : 'Setar Pago')}
+                                ${isExempt ? 'Isento' : (isPaid ? '✓ Pago' : 'Setar Pago')}
                             </button>
                         </div>
                     </div>
